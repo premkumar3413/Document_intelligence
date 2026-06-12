@@ -11,16 +11,18 @@ POST /api/ingest/check-duplicate         mark new ingestion as Original or Dupli
 POST /api/admin/scan-duplicates          bulk reclassify all existing records
 DELETE /api/files/{document_id}          delete file from Blob + soft-delete in DB
 """
-
+import io
+import mimetypes
 import logging
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from psycopg2.extras import RealDictCursor
 
 from database import get_connection
 from models import IngestCheckRequest
-from utils.blob import delete_source_blob, file_path_to_source_key
+from utils.blob import delete_source_blob, download_source_blob, file_path_to_source_key
 
 log = logging.getLogger(__name__)
 
@@ -522,6 +524,174 @@ def list_deleted_files(
         }
     finally:
         conn.close()
+@router.get("/files/{document_id}/download")
+def download_file(document_id: str):
+    """
+    Download the original source file for a given document_id.
+    Called by the frontend fetchFileBlob() and downloadFile() in files.ts.
+    Returns the file as a streaming attachment with the correct content-type
+    so the browser can render PDFs inline or trigger a save-as for DOCX.
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT document_id, file_name, file_path, processing_status
+                FROM   document_metadata
+                WHERE  document_id = %s
+                """,
+                (document_id,),
+            )
+            doc = cur.fetchone()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        conn.close()
+
+    if not doc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Document '{document_id}' not found.",
+        )
+
+    if doc["processing_status"] == "Deleted":
+        raise HTTPException(
+            status_code=410,
+            detail="This document has been deleted and is no longer available for download.",
+        )
+
+    try:
+        file_bytes = download_source_blob(doc["file_path"])
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not retrieve file from storage: {exc}",
+        )
+
+    content_type = (
+        mimetypes.guess_type(doc["file_name"])[0]
+        or "application/octet-stream"
+    )
+    safe_name = doc["file_name"].replace('"', "")
+
+    return StreamingResponse(
+        io.BytesIO(file_bytes),
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_name}"',
+        },
+    )
+
+def download_file(document_id: str):
+
+    """
+
+    Download the original source file for a given document_id.
+
+    Called by the frontend fetchFileBlob() and downloadFile() in files.ts.
+
+    Returns the file as a streaming attachment with the correct content-type
+
+    so the browser can render PDFs inline or trigger a save-as for DOCX.
+
+    """
+
+    # ── 1. Look up the document row ───────────────────────────────────────────
+
+    conn = get_connection()
+
+    try:
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+
+            cur.execute(
+
+                """
+
+                SELECT document_id, file_name, file_path, processing_status
+
+                FROM   document_metadata
+
+                WHERE  document_id = %s
+
+                """,
+
+                (document_id,),
+
+            )
+
+            doc = cur.fetchone()
+
+    except Exception as exc:
+
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    finally:
+
+        conn.close()
+
+    if not doc:
+
+        raise HTTPException(
+
+            status_code=404,
+
+            detail=f"Document '{document_id}' not found.",
+
+        )
+
+    if doc["processing_status"] == "Deleted":
+
+        raise HTTPException(
+
+            status_code=410,
+
+            detail="This document has been deleted and is no longer available for download.",
+
+        )
+
+    # ── 2. Download raw bytes from Azure Blob Storage ─────────────────────────
+
+    try:
+
+        file_bytes = download_source_blob(doc["file_path"])
+
+    except Exception as exc:
+
+        raise HTTPException(
+
+            status_code=502,
+
+            detail=f"Could not retrieve file from storage: {exc}",
+
+        )
+
+    # ── 3. Stream back with correct content-type ──────────────────────────────
+
+    content_type = (
+
+        mimetypes.guess_type(doc["file_name"])[0]
+
+        or "application/octet-stream"
+
+    )
+
+    safe_name = doc["file_name"].replace('"', "")
+
+    return StreamingResponse(
+
+        io.BytesIO(file_bytes),
+
+        media_type=content_type,
+
+        headers={
+
+            "Content-Disposition": f'attachment; filename="{safe_name}"',
+
+        },
+
+    )
 
 @router.delete("/files/{document_id}")
 def delete_file_endpoint(document_id: str):
@@ -539,7 +709,6 @@ def delete_file_endpoint(document_id: str):
         raise HTTPException(status_code=500, detail=f"Deletion failed: {exc}")
     finally:
         conn.close()
-
 
 @router.post("/ingest/check-duplicate")
 def check_duplicate_endpoint(body: IngestCheckRequest):
