@@ -1,0 +1,29 @@
+# Document Intelligence API — Python dependencies
+# Install with: pip install -r requirements.txt
+
+# Web framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.0.0
+python-multipart>=0.0.9        # required for FastAPI File/Form uploads
+
+# Database
+psycopg2-binary>=2.9.9
+
+# Azure services
+azure-storage-blob>=12.19.0
+openai>=1.30.0                  # Azure OpenAI SDK
+
+# Document text extraction
+pymupdf>=1.24.0                 # PDF → fitz
+python-docx>=1.1.0              # DOCX
+openpyxl>=3.1.0                 # XLSX
+python-pptx>=0.6.23             # PPTX
+striprtf>=0.0.26                # RTF (optional fallback built-in)
+
+# RBAC / authentication
+python-jose[cryptography]>=3.3.0  # JWT signing and verification
+bcrypt>=4.0.0                     # password hashing (used directly, not via passlib)
+
+python-dotenv>=1.0.0
+tenacity>=8.2.0
