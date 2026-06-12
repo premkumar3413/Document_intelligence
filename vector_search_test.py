@@ -47,6 +47,7 @@ import psycopg2
 import psycopg2.extras
 from openai import AzureOpenAI
 import os
+from config import AI_TEMPERATURE
 
 OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 OPENAI_KEY      = os.getenv("AZURE_OPENAI_KEY")
@@ -111,7 +112,7 @@ def generate_hypothetical_answer(query: str) -> str:
         model=CHAT_MODEL,
         messages=[{"role": "system", "content": system},
                   {"role": "user", "content": f"Write an excerpt answering: {query}"}],
-        temperature=0.1, max_tokens=120,
+        temperature=AI_TEMPERATURE, max_tokens=120,
     )
     answer = response.choices[0].message.content.strip()
     print(f'  HyDE answer: "{answer[:100]}{"..." if len(answer) > 100 else ""}')

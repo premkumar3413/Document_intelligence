@@ -72,6 +72,7 @@ import psycopg2
 import psycopg2.extras
 from openai import AzureOpenAI
 import os
+from config import AI_TEMPERATURE
 
 # ── Config (matches config.py) ─────────────────────────────────────────────────
 OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
@@ -151,7 +152,7 @@ def generate_hypothetical_answer(query: str) -> str:
             {"role": "system", "content": system},
             {"role": "user",   "content": f"Write a document excerpt that answers: {query}"},
         ],
-        temperature=0.1,
+        temperature=AI_TEMPERATURE,
         max_tokens=150,
     )
     answer = response.choices[0].message.content.strip()
