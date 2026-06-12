@@ -786,3 +786,26 @@ def get_classification_summary():
             return dict(cur.fetchone())
     finally:
         conn.close()
+
+@router.get("/classification/queue-count")
+def get_queue_count():
+    """Exact count of original documents that have no classification record yet."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*) AS queue_count
+                FROM   document_metadata dm
+                LEFT JOIN LATERAL (
+                    SELECT 1 FROM classification_docs
+                    WHERE  document_id = dm.document_id LIMIT 1
+                ) cd ON TRUE
+                WHERE  dm.is_duplicate       = FALSE
+                  AND  dm.processing_status != 'Deleted'
+                  AND  cd IS NULL
+                """
+            )
+            return {"queue_count": cur.fetchone()[0]}
+    finally:
+        conn.close()
